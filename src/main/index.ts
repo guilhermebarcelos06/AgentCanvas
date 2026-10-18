@@ -113,7 +113,14 @@ app.whenReady().then(async () => {
       mainWindow?.maximize()
     }
   })
-  ipcMain.handle('window:close', () => mainWindow?.close())
+  ipcMain.handle('window:close', () => {
+    try {
+      ptyManager?.killAll()
+      socketServer?.stop()
+    } finally {
+      app.exit(0)
+    }
+  })
 
   // Native Dialog: Folder Picker ("Procurar...")
   ipcMain.handle('dialog:openDirectory', async () => {
@@ -222,9 +229,18 @@ app.whenReady().then(async () => {
   })
 })
 
+app.on('before-quit', () => {
+  try {
+    ptyManager?.killAll()
+    socketServer?.stop()
+  } catch {}
+})
+
 app.on('window-all-closed', () => {
-  socketServer?.stop()
-  if (process.platform !== 'darwin') {
-    app.quit()
+  try {
+    ptyManager?.killAll()
+    socketServer?.stop()
+  } finally {
+    app.exit(0)
   }
 })

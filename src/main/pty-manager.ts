@@ -134,6 +134,15 @@ export class PtyManager extends EventEmitter {
     }
   }
 
+  public killAll(): void {
+    for (const [id, session] of this.terminals.entries()) {
+      try {
+        session.ptyProcess.kill()
+      } catch {}
+    }
+    this.terminals.clear()
+  }
+
   public getSession(id: string): TerminalSession | undefined {
     return this.terminals.get(id)
   }

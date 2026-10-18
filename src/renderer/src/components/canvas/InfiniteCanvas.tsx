@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
-import { useAtom } from 'jotai'
-import { panAtom, zoomAtom, nodesAtom, connectionsAtom, selectedNodeIdAtom } from '../../state/canvas'
+import { useAtom, useAtomValue } from 'jotai'
+import { panAtom, zoomAtom, nodesAtom, connectionsAtom, selectedNodeIdAtom, expandedNodeIdAtom } from '../../state/canvas'
 import { CableLayer } from './CableLayer'
 import { NodeContainer } from './NodeContainer'
 import { TerminalNode } from '../terminal/TerminalNode'
@@ -13,11 +13,13 @@ export const InfiniteCanvas: React.FC = () => {
   const [nodes, setNodes] = useAtom(nodesAtom)
   const [connections] = useAtom(connectionsAtom)
   const [selectedNodeId, setSelectedNodeId] = useAtom(selectedNodeIdAtom)
+  const expandedNodeId = useAtomValue(expandedNodeIdAtom)
 
   const [isPanning, setIsPanning] = useState(false)
   const startPanRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (expandedNodeId) return
     // Start panning on middle mouse click OR left-click on background
     if (e.button === 1 || (e.button === 0 && (e.target as HTMLElement).classList.contains('canvas-viewport'))) {
       setIsPanning(true)
@@ -50,6 +52,7 @@ export const InfiniteCanvas: React.FC = () => {
   }
 
   const handleWheel = (e: React.WheelEvent) => {
+    if (expandedNodeId) return
     // Zoom in/out with mouse wheel
     if (e.ctrlKey || e.metaKey || true) {
       e.preventDefault()

@@ -8,6 +8,7 @@ import { Minimap } from './components/canvas/Minimap'
 import { CommandPalette } from './components/palette/CommandPalette'
 import { NewTerminalModal } from './components/terminal/NewTerminalModal'
 import { NewWorkspaceModal } from './components/workspace/NewWorkspaceModal'
+import { FloatingCanvasToolbars } from './components/toolbar/FloatingCanvasToolbars'
 import { nodesAtom, connectionsAtom, activeWorkspaceAtom } from './state/canvas'
 
 export const App: React.FC = () => {
@@ -64,6 +65,7 @@ export const App: React.FC = () => {
       {/* Main Infinite Canvas Plane */}
       <main className="flex-1 w-full h-full relative overflow-hidden">
         <InfiniteCanvas />
+        <FloatingCanvasToolbars />
         <DockedSidebar />
         <PrompterBar />
         <Minimap />

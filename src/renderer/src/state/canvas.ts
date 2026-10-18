@@ -42,6 +42,8 @@ export interface WorkspaceItem {
 export const panAtom = atom<{ x: number; y: number }>({ x: 200, y: 150 })
 export const zoomAtom = atom(1)
 export const selectedNodeIdAtom = atom(null as string | null)
+export const expandedNodeIdAtom = atom(null as string | null)
+export const canvasModeAtom = atom<'select' | 'draw'>('select')
 
 // Cable interaction atoms
 export const connectingFromNodeIdAtom = atom(null as string | null)

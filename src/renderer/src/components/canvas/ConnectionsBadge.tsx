@@ -5,9 +5,10 @@ import { GitBranch, X, ExternalLink, Unlink } from 'lucide-react'
 
 interface ConnectionsBadgeProps {
   nodeId: string
+  alwaysShow?: boolean
 }
 
-export const ConnectionsBadge: React.FC<ConnectionsBadgeProps> = ({ nodeId }) => {
+export const ConnectionsBadge: React.FC<ConnectionsBadgeProps> = ({ nodeId, alwaysShow = false }) => {
   const [connections, setConnections] = useAtom(connectionsAtom)
   const [nodes] = useAtom(nodesAtom)
   const setPan = useSetAtom(panAtom)
@@ -20,7 +21,7 @@ export const ConnectionsBadge: React.FC<ConnectionsBadgeProps> = ({ nodeId }) =>
   )
 
   const count = activeConnections.length
-  if (count === 0) return null
+  if (count === 0 && !alwaysShow) return null
 
   // Focar a câmera do canvas no nó alvo
   const handleFocusNode = (targetId: string) => {
