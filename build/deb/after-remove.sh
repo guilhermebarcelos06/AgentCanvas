@@ -7,6 +7,9 @@ if [ -f /etc/apparmor.d/agentcanvas ]; then
   rm -f /etc/apparmor.d/agentcanvas 2>/dev/null || true
 fi
 
+# Limpar pixmaps fallback
+rm -f /usr/share/pixmaps/agentcanvas.png 2>/dev/null || true
+
 # Atualizar cache de ícones do sistema
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache /usr/share/icons/hicolor -f -t 2>/dev/null || true

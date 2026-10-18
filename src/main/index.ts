@@ -20,6 +20,10 @@ let worktreeManager: WorktreeManager | null = null
 let workspaceStore: WorkspaceStore | null = null
 
 function createWindow(): void {
+  const iconPath = is.dev
+    ? join(__dirname, '../../resources/icon.png')
+    : join(process.resourcesPath, 'resources/icon.png')
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -30,7 +34,7 @@ function createWindow(): void {
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#08070D',
-    icon: join(__dirname, '../../resources/icon.png'),
+    icon: iconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

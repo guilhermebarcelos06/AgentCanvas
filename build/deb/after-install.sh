@@ -23,12 +23,19 @@ EOF
   apparmor_parser -r /etc/apparmor.d/agentcanvas 2>/dev/null || true
 fi
 
-# 3. Atualizar cache de ícones do sistema
+# 3. Copiar ícones para pixmaps como fallback universal
+if [ -d /usr/share/icons/hicolor/512x512/apps ]; then
+  mkdir -p /usr/share/pixmaps
+  cp /usr/share/icons/hicolor/512x512/apps/agentcanvas.png /usr/share/pixmaps/agentcanvas.png 2>/dev/null || true
+  cp /usr/share/icons/hicolor/256x256/apps/agentcanvas.png /usr/share/pixmaps/agentcanvas.png 2>/dev/null || true
+fi
+
+# 4. Atualizar cache de ícones do sistema
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache /usr/share/icons/hicolor -f -t 2>/dev/null || true
 fi
 
-# 4. Atualizar banco de dados desktop
+# 5. Atualizar banco de dados desktop
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database -q /usr/share/applications 2>/dev/null || true
 fi
