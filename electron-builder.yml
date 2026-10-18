@@ -1,0 +1,39 @@
+appId: com.agentcanvas.app
+productName: AgentCanvas
+directories:
+  buildResources: resources
+  output: dist
+
+files:
+  - out/**/*
+  - resources/**/*
+  - node_modules/**/*
+  - package.json
+
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - '**/*'
+
+linux:
+  target:
+    - deb
+    - AppImage
+  category: Development
+  maintainer: Guilherme Barcelos
+  icon: resources/icon.png
+  synopsis: Spatial AI Agent Canvas Workspace for Linux & Windows
+  description: Spatial AI Agent Canvas Workspace connecting terminals, notes and portals with live inter-agent IPC
+
+win:
+  target:
+    - nsis
+    - zip
+  icon: resources/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
