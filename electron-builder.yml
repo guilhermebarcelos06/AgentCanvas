@@ -22,9 +22,15 @@ linux:
     - AppImage
   category: Development
   maintainer: Guilherme Barcelos
-  icon: resources/icon.png
+  icon: build/icons
   synopsis: Spatial AI Agent Canvas Workspace for Linux & Windows
   description: Spatial AI Agent Canvas Workspace connecting terminals, notes and portals with live inter-agent IPC
+  executableArgs:
+    - "--no-sandbox"
+
+deb:
+  afterInstall: build/deb/after-install.sh
+  afterRemove: build/deb/after-remove.sh
 
 win:
   target:

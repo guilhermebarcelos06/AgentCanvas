@@ -1,13 +1,33 @@
 import React, { useEffect } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { CanvasToolbar } from './components/toolbar/CanvasToolbar'
 import { InfiniteCanvas } from './components/canvas/InfiniteCanvas'
-import { nodesAtom } from './state/canvas'
+import { DockedSidebar } from './components/sidebar/DockedSidebar'
+import { PrompterBar } from './components/prompter/PrompterBar'
+import { Minimap } from './components/canvas/Minimap'
+import { CommandPalette } from './components/palette/CommandPalette'
+import { NewTerminalModal } from './components/terminal/NewTerminalModal'
+import { NewWorkspaceModal } from './components/workspace/NewWorkspaceModal'
+import { nodesAtom, connectionsAtom, activeWorkspaceAtom } from './state/canvas'
 
 export const App: React.FC = () => {
   const [nodes, setNodes] = useAtom(nodesAtom)
+  const connections = useAtomValue(connectionsAtom)
+  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
 
-  // Sync canvas notes with the Socket Server for the CLI
+  // Persistir automaticamente o estado (nós e cabos) no workspace ativo
+  useEffect(() => {
+    if (!activeWorkspace?.id) return
+    const timeout = setTimeout(() => {
+      window.agentCanvasAPI?.saveWorkspaceState(activeWorkspace.id, {
+        nodes,
+        cables: connections
+      })
+    }, 600)
+    return () => clearTimeout(timeout)
+  }, [nodes, connections, activeWorkspace])
+
+  // Sincronizar notas do canvas com o Socket Server do CLI (agentcanvas note read / write)
   useEffect(() => {
     const noteItems = nodes
       .filter((n) => n.type === 'note')
@@ -20,7 +40,7 @@ export const App: React.FC = () => {
     window.agentCanvasAPI?.syncNotes(noteItems)
   }, [nodes])
 
-  // Listen to remote note changes from CLI (e.g. `agentcanvas note write`)
+  // Ouvir atualizações remotas de notas vindas do CLI
   useEffect(() => {
     const cleanup = window.agentCanvasAPI?.onRemoteNoteUpdate(({ name, content }) => {
       setNodes((prev) =>
@@ -37,11 +57,22 @@ export const App: React.FC = () => {
   }, [setNodes])
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-canvas-bg overflow-hidden">
+    <div className="w-screen h-screen flex flex-col bg-canvas-bg overflow-hidden relative">
+      {/* Top Application Toolbar */}
       <CanvasToolbar />
+
+      {/* Main Infinite Canvas Plane */}
       <main className="flex-1 w-full h-full relative overflow-hidden">
         <InfiniteCanvas />
+        <DockedSidebar />
+        <PrompterBar />
+        <Minimap />
       </main>
+
+      {/* Global Modals & Command Palette */}
+      <CommandPalette />
+      <NewTerminalModal />
+      <NewWorkspaceModal />
     </div>
   )
 }

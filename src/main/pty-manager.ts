@@ -10,6 +10,8 @@ export interface TerminalSession {
   maxBufferSize: number
   cwd: string
   shell: string
+  command?: string
+  isMaestro?: boolean
 }
 
 export class PtyManager extends EventEmitter {
@@ -28,19 +30,28 @@ export class PtyManager extends EventEmitter {
     return process.env.SHELL || '/bin/bash'
   }
 
-  public spawn(id: string, name: string, cwd?: string, initialCols = 80, initialRows = 24): TerminalSession {
+  public spawn(
+    id: string,
+    name: string,
+    cwd?: string,
+    initialCols = 80,
+    initialRows = 24,
+    command?: string,
+    isMaestro = false
+  ): TerminalSession {
     const shell = this.getAvailableShell()
     const targetCwd = cwd || os.homedir()
 
     // Environment variables injected into the subshell
     const env: { [key: string]: string } = {
-      ...process.env as { [key: string]: string },
+      ...(process.env as { [key: string]: string }),
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
       AGENTCANVAS_SOCKET: this.socketPath,
       AGENTCANVAS_PIPE: this.socketPath,
       AGENTCANVAS_TERMINAL_ID: id,
-      AGENTCANVAS_TERMINAL_NAME: name
+      AGENTCANVAS_TERMINAL_NAME: name,
+      AGENTCANVAS_MAESTRO: isMaestro ? '1' : '0'
     }
 
     const ptyProcess = pty.spawn(shell, [], {
@@ -58,7 +69,9 @@ export class PtyManager extends EventEmitter {
       buffer: [],
       maxBufferSize: 1000,
       cwd: targetCwd,
-      shell
+      shell,
+      command,
+      isMaestro
     }
 
     ptyProcess.onData((data: string) => {
@@ -76,6 +89,18 @@ export class PtyManager extends EventEmitter {
     })
 
     this.terminals.set(id, session)
+
+    // Se houver um comando configurado para auto-run, executa após breve delay
+    if (command && command.trim().length > 0) {
+      setTimeout(() => {
+        try {
+          ptyProcess.write(`${command.trim()}\r\n`)
+        } catch {
+          // Processo pode ter finalizado prematuramente
+        }
+      }, 350)
+    }
+
     return session
   }
 

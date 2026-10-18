@@ -5,6 +5,7 @@ import { CableLayer } from './CableLayer'
 import { NodeContainer } from './NodeContainer'
 import { TerminalNode } from '../terminal/TerminalNode'
 import { NoteNode } from '../note/NoteNode'
+import { PortalNode } from '../portal/PortalNode'
 
 export const InfiniteCanvas: React.FC = () => {
   const [pan, setPan] = useAtom(panAtom)
@@ -123,6 +124,8 @@ export const InfiniteCanvas: React.FC = () => {
           >
             {node.type === 'terminal' ? (
               <TerminalNode id={node.id} title={node.title} width={node.width} height={node.height} />
+            ) : node.type === 'portal' ? (
+              <PortalNode id={node.id} initialUrl={node.data.url as string | undefined} />
             ) : (
               <NoteNode
                 id={node.id}

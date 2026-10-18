@@ -1,6 +1,16 @@
 import React, { useState } from 'react'
-import { Terminal, StickyNote, X, Move } from 'lucide-react'
-import type { CanvasNode } from '../../state/canvas'
+import { useAtom, useSetAtom } from 'jotai'
+import { Terminal, StickyNote, Globe, X, Sparkles } from 'lucide-react'
+import type { CanvasNode, CableConnection } from '../../state/canvas'
+import {
+  connectingFromNodeIdAtom,
+  connectingLineEndpointAtom,
+  connectionsAtom,
+  nodesAtom,
+  panAtom,
+  zoomAtom
+} from '../../state/canvas'
+import { ConnectionsBadge } from './ConnectionsBadge'
 
 interface NodeContainerProps {
   node: CanvasNode
@@ -22,25 +32,29 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
   children
 }) => {
   const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, nodeX: 0, nodeY: 0 })
+  const setConnectingFromId = useSetAtom(connectingFromNodeIdAtom)
+  const setConnectingEndpoint = useSetAtom(connectingLineEndpointAtom)
+  const [connections, setConnections] = useAtom(connectionsAtom)
+  const [nodes] = useAtom(nodesAtom)
+  const [pan] = useAtom(panAtom)
+  const [zoom] = useAtom(zoomAtom)
 
+  // Arrastar nó pelo cabeçalho
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Only drag from header
     if ((e.target as HTMLElement).closest('.node-action-btn')) return
     e.stopPropagation()
     onSelect()
     setIsDragging(true)
-    setDragStart({
-      x: e.clientX,
-      y: e.clientY,
-      nodeX: node.x,
-      nodeY: node.y
-    })
+
+    const startClientX = e.clientX
+    const startClientY = e.clientY
+    const startNodeX = node.x
+    const startNodeY = node.y
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const dx = moveEvent.clientX - e.clientX
-      const dy = moveEvent.clientY - e.clientY
-      onUpdatePosition(node.id, Math.round(node.x + dx), Math.round(node.y + dy))
+      const dx = (moveEvent.clientX - startClientX) / zoom
+      const dy = (moveEvent.clientY - startClientY) / zoom
+      onUpdatePosition(node.id, Math.round(startNodeX + dx), Math.round(startNodeY + dy))
     }
 
     const handleMouseUp = () => {
@@ -53,6 +67,7 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
     window.addEventListener('mouseup', handleMouseUp)
   }
 
+  // Redimensionar nó
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
     const startW = node.width
@@ -61,9 +76,9 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
     const startY = e.clientY
 
     const handleResizeMouseMove = (moveEvent: MouseEvent) => {
-      const newW = Math.max(320, startW + (moveEvent.clientX - startX))
-      const newH = Math.max(200, startH + (moveEvent.clientY - startY))
-      onUpdateSize(node.id, newW, newH)
+      const newW = Math.max(320, startW + (moveEvent.clientX - startX) / zoom)
+      const newH = Math.max(200, startH + (moveEvent.clientY - startY) / zoom)
+      onUpdateSize(node.id, Math.round(newW), Math.round(newH))
     }
 
     const handleResizeMouseUp = () => {
@@ -73,6 +88,80 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
 
     window.addEventListener('mousemove', handleResizeMouseMove)
     window.addEventListener('mouseup', handleResizeMouseUp)
+  }
+
+  // Iniciar arrasto de cabo a partir de uma porta
+  const handlePortMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+
+    setConnectingFromId(node.id)
+
+    // Converter coordenada da tela para espaço do canvas
+    const canvasX = (e.clientX - pan.x) / zoom
+    const canvasY = (e.clientY - pan.y) / zoom
+    setConnectingEndpoint({ x: canvasX, y: canvasY })
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const curX = (moveEvent.clientX - pan.x) / zoom
+      const curY = (moveEvent.clientY - pan.y) / zoom
+      setConnectingEndpoint({ x: curX, y: curY })
+    }
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      setConnectingFromId(null)
+      setConnectingEndpoint(null)
+
+      // Identificar se o mouse foi solto sobre outro nó
+      const dropCanvasX = (upEvent.clientX - pan.x) / zoom
+      const dropCanvasY = (upEvent.clientY - pan.y) / zoom
+
+      const target = nodes.find(
+        (n) =>
+          n.id !== node.id &&
+          dropCanvasX >= n.x &&
+          dropCanvasX <= n.x + n.width &&
+          dropCanvasY >= n.y &&
+          dropCanvasY <= n.y + n.height
+      )
+
+      if (target) {
+        // Verificar se conexão já existe
+        const alreadyExists = connections.some(
+          (c) =>
+            (c.fromNodeId === node.id && c.toNodeId === target.id) ||
+            (c.fromNodeId === target.id && c.toNodeId === node.id)
+        )
+        if (!alreadyExists) {
+          const newConnection: CableConnection = {
+            id: `conn-${Date.now().toString(36)}`,
+            fromNodeId: node.id,
+            toNodeId: target.id,
+            color: '#8B5CF6'
+          }
+          setConnections((prev) => [...prev, newConnection])
+        }
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }
+
+  const renderIcon = () => {
+    if (node.type === 'terminal') {
+      return node.isMaestro ? (
+        <Sparkles className="w-4 h-4 text-purple-300 animate-pulse shrink-0" />
+      ) : (
+        <Terminal className="w-4 h-4 text-purple-400 shrink-0" />
+      )
+    }
+    if (node.type === 'portal') {
+      return <Globe className="w-4 h-4 text-cyan-400 shrink-0" />
+    }
+    return <StickyNote className="w-4 h-4 text-amber-400 shrink-0" />
   }
 
   return (
@@ -96,19 +185,24 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
           isSelected ? 'bg-[#1C1630]' : 'bg-[#151224]'
         }`}
       >
-        <div className="flex items-center gap-2 overflow-hidden">
-          {node.type === 'terminal' ? (
-            <Terminal className="w-4 h-4 text-purple-400 shrink-0" />
-          ) : (
-            <StickyNote className="w-4 h-4 text-amber-400 shrink-0" />
-          )}
+        <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+          {renderIcon()}
           <span className="text-xs font-semibold text-purple-100 truncate tracking-wide">
             {node.title}
           </span>
+          {node.isMaestro && (
+            <span className="text-[10px] bg-purple-600/30 text-purple-300 border border-purple-500/40 px-1.5 py-0.2 rounded font-mono">
+              MAESTRO
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-1.5 node-action-btn">
+        <div className="flex items-center gap-2 node-action-btn">
+          {/* Badge de conexões idêntico ao Maestri */}
+          <ConnectionsBadge nodeId={node.id} />
+
           <button
+            type="button"
             onClick={() => onDelete(node.id)}
             className="p-1 rounded-md text-purple-400 hover:text-white hover:bg-rose-500/20 transition-colors"
             title="Fechar Nó"
@@ -123,9 +217,27 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
         {children}
       </div>
 
-      {/* Connection Port Anchors (Top, Bottom) */}
-      <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-125 transition-transform" />
-      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-125 transition-transform" />
+      {/* Connection Port Anchors (Top, Bottom, Left, Right) */}
+      <div
+        onMouseDown={handlePortMouseDown}
+        className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+        title="Arrastar cabo de conexão"
+      />
+      <div
+        onMouseDown={handlePortMouseDown}
+        className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+        title="Arrastar cabo de conexão"
+      />
+      <div
+        onMouseDown={handlePortMouseDown}
+        className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+        title="Arrastar cabo de conexão"
+      />
+      <div
+        onMouseDown={handlePortMouseDown}
+        className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+        title="Arrastar cabo de conexão"
+      />
 
       {/* Resize Handle at Bottom-Right */}
       <div

@@ -1,14 +1,23 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { PtyManager } from './pty-manager'
 import { SocketServer, NoteItem } from './socket-server'
 import { WorktreeManager } from './worktree-manager'
+import { WorkspaceStore } from './workspace-store'
+import { FileManager } from './file-manager'
+
+// Configurações defensivas para compatibilidade perfeita com Ubuntu 24.04/26.04 AppArmor
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('no-sandbox')
+  app.commandLine.appendSwitch('disable-setuid-sandbox')
+}
 
 let mainWindow: BrowserWindow | null = null
 let ptyManager: PtyManager | null = null
 let socketServer: SocketServer | null = null
 let worktreeManager: WorktreeManager | null = null
+let workspaceStore: WorkspaceStore | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -65,8 +74,13 @@ app.whenReady().then(async () => {
   // Update PTY manager with exact socket path
   ptyManager = new PtyManager(actualSocketPath)
 
-  // 3. Initialize Worktree Manager
-  worktreeManager = new WorktreeManager(process.cwd())
+  // Initialize Workspace Store
+  workspaceStore = new WorkspaceStore()
+  const initialActiveWs = workspaceStore.getActive()
+  const initialRootPath = initialActiveWs?.rootPath || process.cwd()
+
+  // 3. Initialize Worktree Manager with active workspace path
+  worktreeManager = new WorktreeManager(initialRootPath)
 
   // Forward PTY streams to Renderer
   ptyManager.on('data', ({ id, data }) => {
@@ -86,7 +100,7 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send('agent:asked', askData)
   })
 
-  // Register IPC Handlers
+  // Register Window IPC Handlers
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:toggle-maximize', () => {
     if (mainWindow?.isMaximized()) {
@@ -97,9 +111,58 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('window:close', () => mainWindow?.close())
 
-  // Terminal IPCs
-  ipcMain.handle('terminal:spawn', (_, { id, name, cwd, cols, rows }) => {
-    return ptyManager?.spawn(id, name, cwd, cols, rows)
+  // Native Dialog: Folder Picker ("Procurar...")
+  ipcMain.handle('dialog:openDirectory', async () => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Selecionar Diretório de Trabalho',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  // Workspace IPCs
+  ipcMain.handle('workspace:list', () => {
+    return workspaceStore?.list() || []
+  })
+  ipcMain.handle('workspace:getActive', () => {
+    return workspaceStore?.getActive()
+  })
+  ipcMain.handle('workspace:create', (_, { name, rootPath }) => {
+    const ws = workspaceStore?.create(name, rootPath)
+    if (ws) {
+      worktreeManager = new WorktreeManager(ws.rootPath)
+    }
+    return ws
+  })
+  ipcMain.handle('workspace:switch', (_, id: string) => {
+    const ws = workspaceStore?.switch(id)
+    if (ws) {
+      worktreeManager = new WorktreeManager(ws.rootPath)
+    }
+    return ws
+  })
+  ipcMain.handle('workspace:saveState', (_, { id, state }) => {
+    return workspaceStore?.saveState(id, state) ?? false
+  })
+  ipcMain.handle('workspace:delete', (_, id: string) => {
+    return workspaceStore?.delete(id) ?? false
+  })
+
+  // File Manager IPCs (Sidebar File Tree & Notes)
+  ipcMain.handle('files:listTree', (_, dirPath?: string) => {
+    const targetDir = dirPath || workspaceStore?.getActive()?.rootPath || process.cwd()
+    return FileManager.listTree(targetDir)
+  })
+  ipcMain.handle('files:readContent', (_, filePath: string) => {
+    return FileManager.readFileContent(filePath)
+  })
+
+  // Terminal IPCs with auto-run support
+  ipcMain.handle('terminal:spawn', (_, { id, name, cwd, cols, rows, command, isMaestro }) => {
+    const targetCwd = cwd || workspaceStore?.getActive()?.rootPath || process.cwd()
+    return ptyManager?.spawn(id, name, targetCwd, cols, rows, command, isMaestro)
   })
 
   ipcMain.handle('terminal:write', (_, { id, data }) => {
