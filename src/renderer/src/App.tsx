@@ -31,7 +31,9 @@ export const App: React.FC = () => {
         )
       )
     })
-    return () => cleanup?.()
+    return () => {
+      cleanup?.()
+    }
   }, [setNodes])
 
   return (

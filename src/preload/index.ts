@@ -36,12 +36,16 @@ export const agentCanvasAPI = {
   onTerminalData: (callback: (payload: { id: string; data: string }) => void) => {
     const handler = (_: unknown, val: { id: string; data: string }) => callback(val)
     ipcRenderer.on('terminal:data', handler)
-    return () => ipcRenderer.removeListener('terminal:data', handler)
+    return () => {
+      ipcRenderer.removeListener('terminal:data', handler)
+    }
   },
   onTerminalExit: (callback: (payload: { id: string; exitCode: number; signal?: number }) => void) => {
     const handler = (_: unknown, val: { id: string; exitCode: number; signal?: number }) => callback(val)
     ipcRenderer.on('terminal:exit', handler)
-    return () => ipcRenderer.removeListener('terminal:exit', handler)
+    return () => {
+      ipcRenderer.removeListener('terminal:exit', handler)
+    }
   },
 
   // Socket & Sync
@@ -50,12 +54,16 @@ export const agentCanvasAPI = {
   onRemoteNoteUpdate: (callback: (payload: { name: string; content: string }) => void) => {
     const handler = (_: unknown, val: { name: string; content: string }) => callback(val)
     ipcRenderer.on('note:remote-update', handler)
-    return () => ipcRenderer.removeListener('note:remote-update', handler)
+    return () => {
+      ipcRenderer.removeListener('note:remote-update', handler)
+    }
   },
   onAgentAsked: (callback: (payload: { target: string; prompt: string }) => void) => {
     const handler = (_: unknown, val: { target: string; prompt: string }) => callback(val)
     ipcRenderer.on('agent:asked', handler)
-    return () => ipcRenderer.removeListener('agent:asked', handler)
+    return () => {
+      ipcRenderer.removeListener('agent:asked', handler)
+    }
   },
 
   // Git Worktrees (Floors)

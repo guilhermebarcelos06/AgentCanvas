@@ -27,8 +27,8 @@ export interface CableConnection {
 }
 
 export const panAtom = atom<{ x: number; y: number }>({ x: 200, y: 150 })
-export const zoomAtom = atom<number>(1)
-export const selectedNodeIdAtom = atom<string | null>(null)
+export const zoomAtom = atom(1)
+export const selectedNodeIdAtom = atom(null as string | null)
 
 // Default nodes showing a multi-agent setup out-of-the-box
 export const nodesAtom = atom<CanvasNode[]>([
