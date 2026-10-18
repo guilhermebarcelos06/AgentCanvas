@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'node:path'
+import fs from 'node:fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { PtyManager } from './pty-manager'
 import { SocketServer, NoteItem } from './socket-server'
@@ -24,6 +25,10 @@ function createWindow(): void {
     ? join(__dirname, '../../resources/icon.png')
     : join(process.resourcesPath, 'resources/icon.png')
 
+  const preloadMjs = join(__dirname, '../preload/index.mjs')
+  const preloadJs = join(__dirname, '../preload/index.js')
+  const preloadPath = fs.existsSync(preloadMjs) ? preloadMjs : preloadJs
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -36,7 +41,7 @@ function createWindow(): void {
     backgroundColor: '#08070D',
     icon: iconPath,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: preloadPath,
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false

@@ -53,7 +53,10 @@ export const ConnectionsBadge: React.FC<ConnectionsBadgeProps> = ({ nodeId, alwa
       {/* Botão com o ícone de ramificação e badge numérico (idêntico ao Maestri) */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => {
+          e.stopPropagation()
+          setIsOpen(!isOpen)
+        }}
         className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#1A162B] hover:bg-[#251F3D] border border-[#3B2F63] hover:border-[#8B5CF6] transition-all shadow-sm group"
         title={`${count} conexões ativas`}
       >
@@ -86,9 +89,16 @@ export const ConnectionsBadge: React.FC<ConnectionsBadgeProps> = ({ nodeId, alwa
         <>
           <div
             className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsOpen(false)
+            }}
           />
-          <div className="absolute left-0 mt-2 w-64 bg-[#120F1D] border border-[#3B2F63] rounded-xl shadow-2xl p-2.5 z-50 backdrop-blur-md">
+          <div
+            className={`absolute left-0 ${
+              alwaysShow ? 'bottom-full mb-2.5' : 'top-full mt-2'
+            } w-64 bg-[#120F1D] border border-[#3B2F63] rounded-xl shadow-2xl p-2.5 z-50 backdrop-blur-md`}
+          >
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#251F3D] px-1">
               <span className="font-semibold text-purple-200 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                 <GitBranch size={13} className="text-purple-400" />
