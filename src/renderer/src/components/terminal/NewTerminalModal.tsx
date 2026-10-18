@@ -98,24 +98,11 @@ export const NewTerminalModal: React.FC = () => {
 
   const handleCreate = async () => {
     const termId = `term-${Date.now().toString(36)}`
-    const targetCwd = workingDir.trim() || defaultDir || process.cwd()
-
-    // Spawn do processo PTY no backend Electron (com auto-run do comando informado)
-    try {
-      await window.agentCanvasAPI.spawnTerminal({
-        id: termId,
-        name: name.trim() || 'Terminal',
-        cwd: targetCwd,
-        command: command.trim() || undefined,
-        isMaestro
-      })
-    } catch (err) {
-      console.error('Erro ao spawnar terminal:', err)
-    }
+    const targetCwd = workingDir.trim() || defaultDir || undefined
 
     // Posicionar no centro do viewport visível
-    const spawnX = Math.round((-pan.x + window.innerWidth / 2 - 310) / zoom)
-    const spawnY = Math.round((-pan.y + window.innerHeight / 2 - 210) / zoom)
+    const spawnX = Math.round((-pan.x + window.innerWidth / 2 - 320) / zoom)
+    const spawnY = Math.round((-pan.y + (window.innerHeight - 48) / 2 - 220) / zoom)
 
     const newNode: CanvasNode = {
       id: termId,

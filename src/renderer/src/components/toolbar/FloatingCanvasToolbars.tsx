@@ -1,12 +1,11 @@
 import React, { useState } from 'react'
-import { useAtom, useSetAtom } from 'jotai'
+import { useAtom, useSetAtom, useStore } from 'jotai'
 import {
   Terminal,
   StickyNote,
   Paperclip,
   Folder,
   Globe,
-  Type,
   Pencil,
   Edit3,
   MessageSquare,
@@ -19,6 +18,9 @@ import {
 } from 'lucide-react'
 import {
   nodesAtom,
+  connectionsAtom,
+  panAtom,
+  zoomAtom,
   selectedNodeIdAtom,
   expandedNodeIdAtom,
   canvasModeAtom,
@@ -30,7 +32,9 @@ import {
 import { ConnectionsBadge } from '../canvas/ConnectionsBadge'
 
 export const FloatingCanvasToolbars: React.FC = () => {
+  const store = useStore()
   const [nodes, setNodes] = useAtom(nodesAtom)
+  const setConnections = useSetAtom(connectionsAtom)
   const [selectedNodeId, setSelectedNodeId] = useAtom(selectedNodeIdAtom)
   const [expandedNodeId, setExpandedNodeId] = useAtom(expandedNodeIdAtom)
   const [canvasMode, setCanvasMode] = useAtom(canvasModeAtom)
@@ -38,22 +42,33 @@ export const FloatingCanvasToolbars: React.FC = () => {
   const setActiveSidebarTab = useSetAtom(activeSidebarTabAtom)
   const setNewTerminalModalOpen = useSetAtom(newTerminalModalOpenAtom)
 
-  // Estado para renomear nó selecionado inline
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState('')
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
   const isSelectedNodeExpanded = selectedNode ? expandedNodeId === selectedNode.id : false
 
-  // Criar nova nota rápida
+  const getViewportCenter = (width: number, height: number) => {
+    const pan = store.get(panAtom)
+    const zoom = store.get(zoomAtom)
+    const count = store.get(nodesAtom).length
+    const cascadeOffset = (count % 5) * 24
+    return {
+      x: Math.round((-pan.x + window.innerWidth / 2 - width / 2) / zoom) + cascadeOffset,
+      y: Math.round((-pan.y + (window.innerHeight - 48) / 2 - height / 2) / zoom) + cascadeOffset
+    }
+  }
+
+  // Criar nova nota rápida centralizada no viewport
   const handleAddNote = () => {
     const id = `note-${Date.now().toString(36)}`
+    const pos = getViewportCenter(460, 320)
     const newNode: CanvasNode = {
       id,
       type: 'note',
       title: `Nota ${nodes.filter((n) => n.type === 'note').length + 1}`,
-      x: 380 + Math.random() * 60,
-      y: 200 + Math.random() * 60,
+      x: pos.x,
+      y: pos.y,
       width: 460,
       height: 320,
       color: '#EC4899',
@@ -65,15 +80,16 @@ export const FloatingCanvasToolbars: React.FC = () => {
     setSelectedNodeId(id)
   }
 
-  // Criar novo portal web navegador (como no Maestri)
+  // Criar novo portal web navegador centralizado no viewport
   const handleAddPortal = () => {
     const id = `portal-${Date.now().toString(36)}`
+    const pos = getViewportCenter(760, 520)
     const newNode: CanvasNode = {
       id,
       type: 'portal',
       title: 'Localhost',
-      x: 320 + Math.random() * 60,
-      y: 160 + Math.random() * 60,
+      x: pos.x,
+      y: pos.y,
       width: 760,
       height: 520,
       color: '#06B6D4',
@@ -85,15 +101,16 @@ export const FloatingCanvasToolbars: React.FC = () => {
     setSelectedNodeId(id)
   }
 
-  // Criar bloco de texto / título
+  // Criar bloco de texto / título centralizado no viewport
   const handleAddText = () => {
     const id = `note-text-${Date.now().toString(36)}`
+    const pos = getViewportCenter(360, 200)
     const newNode: CanvasNode = {
       id,
       type: 'note',
       title: 'Texto',
-      x: 400 + Math.random() * 40,
-      y: 220 + Math.random() * 40,
+      x: pos.x,
+      y: pos.y,
       width: 360,
       height: 200,
       color: '#A855F7',
@@ -117,9 +134,6 @@ export const FloatingCanvasToolbars: React.FC = () => {
     const prompter = document.getElementById('prompter-input') as HTMLInputElement | null
     if (prompter) {
       prompter.focus()
-      if (!prompter.value.trim()) {
-        prompter.value = `@${selectedNode.title}: `
-      }
     }
   }
 
@@ -140,36 +154,26 @@ export const FloatingCanvasToolbars: React.FC = () => {
     if (!selectedNode) return
     if (selectedNode.type === 'terminal') {
       window.agentCanvasAPI?.killTerminal(selectedNode.id)
-      // Respawn do terminal
-      window.agentCanvasAPI?.spawnTerminal({
-        id: selectedNode.id,
-        name: selectedNode.title,
-        cols: 80,
-        rows: 24,
-        cwd: selectedNode.cwd,
-        command: selectedNode.command,
-        isMaestro: selectedNode.isMaestro
-      })
-    } else if (selectedNode.type === 'portal') {
-      // Forçar recarga do portal atualizando chave/url
-      setNodes((prev) =>
-        prev.map((n) =>
-          n.id === selectedNode.id
-            ? { ...n, data: { ...n.data, _reloadKey: Date.now() } }
-            : n
-        )
-      )
     }
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === selectedNode.id
+          ? { ...n, data: { ...n.data, _reloadKey: Date.now() } }
+          : n
+      )
+    )
   }
 
-  // Excluir nó selecionado
+  // Excluir nó selecionado e seus cabos conectados
   const handleDeleteNode = () => {
     if (!selectedNode) return
     if (selectedNode.type === 'terminal') {
       window.agentCanvasAPI?.killTerminal(selectedNode.id)
     }
-    setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id))
-    if (expandedNodeId === selectedNode.id) {
+    const targetId = selectedNode.id
+    setNodes((prev) => prev.filter((n) => n.id !== targetId))
+    setConnections((prev) => prev.filter((c) => c.fromNodeId !== targetId && c.toNodeId !== targetId))
+    if (expandedNodeId === targetId) {
       setExpandedNodeId(null)
     }
     setSelectedNodeId(null)
@@ -179,7 +183,7 @@ export const FloatingCanvasToolbars: React.FC = () => {
     <>
       {/* 1. TOP FLOATING PILL TOOLBAR (Main Creation & Mode Tools) */}
       <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 pointer-events-auto select-none">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1C1B20]/90 backdrop-blur-xl border border-[#333238] shadow-2xl shadow-black/60">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1C1B20]/95 border border-[#333238] shadow-2xl shadow-black/60">
           {/* Select / Pointer tool */}
           <button
             type="button"
@@ -191,7 +195,6 @@ export const FloatingCanvasToolbars: React.FC = () => {
             }`}
             title="Ferramenta Seleção / Mover (Cursor)"
           >
-            {/* Ícone de cursor apontando na diagonal idêntico ao Maestri */}
             <svg
               width="16"
               height="16"
@@ -279,7 +282,7 @@ export const FloatingCanvasToolbars: React.FC = () => {
                 ? 'text-[#8B5CF6] bg-purple-500/15'
                 : 'text-[#A1A1AA] hover:text-white hover:bg-white/5'
             }`}
-            title="Modo Desenho / Lápis"
+            title="Modo Desenho / Anotação Rápida"
           >
             <Pencil size={16} />
           </button>
@@ -288,8 +291,8 @@ export const FloatingCanvasToolbars: React.FC = () => {
 
       {/* 2. BOTTOM FLOATING CONTEXTUAL TOOLBAR (Aparece SOMENTE quando um nó estiver selecionado) */}
       {selectedNode && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1C1B20]/95 backdrop-blur-xl border border-[#333238] shadow-2xl shadow-black/80">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 pointer-events-auto select-none">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1C1B20]/95 border border-[#333238] shadow-2xl shadow-black/80">
             {/* Renomear / Editar Título */}
             {isRenaming ? (
               <div className="flex items-center gap-1 px-1">
@@ -335,7 +338,6 @@ export const FloatingCanvasToolbars: React.FC = () => {
               </button>
             )}
 
-            {/* Separador vertical */}
             <div className="w-[1px] h-4 bg-[#38373E] mx-0.5" />
 
             {/* Chat / Prompter com o agente */}
@@ -343,7 +345,7 @@ export const FloatingCanvasToolbars: React.FC = () => {
               type="button"
               onClick={handleChatWithNode}
               className="p-2 rounded-full text-[#A1A1AA] hover:text-white hover:bg-white/5 transition-all"
-              title="Conversar / Prompt com este elemento"
+              title="Conversar / Prompt com este elemento (Ctrl+L)"
             >
               <MessageSquare size={16} />
             </button>
@@ -368,13 +370,11 @@ export const FloatingCanvasToolbars: React.FC = () => {
               {isSelectedNodeExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
 
-            {/* Separador vertical */}
             <div className="w-[1px] h-4 bg-[#38373E] mx-0.5" />
 
             {/* Badge de conexões com contador azul idêntico ao Maestri */}
             <ConnectionsBadge nodeId={selectedNode.id} alwaysShow />
 
-            {/* Separador vertical */}
             <div className="w-[1px] h-4 bg-[#38373E] mx-0.5" />
 
             {/* Recarregar / Reiniciar */}
@@ -387,7 +387,6 @@ export const FloatingCanvasToolbars: React.FC = () => {
               <RotateCw size={16} />
             </button>
 
-            {/* Separador vertical */}
             <div className="w-[1px] h-4 bg-[#38373E] mx-0.5" />
 
             {/* Excluir (Vermelho vibrante idêntico ao Maestri) */}
@@ -395,7 +394,7 @@ export const FloatingCanvasToolbars: React.FC = () => {
               type="button"
               onClick={handleDeleteNode}
               className="p-2 rounded-full text-[#EF4444] hover:text-red-300 hover:bg-red-500/15 transition-all"
-              title="Excluir Elemento"
+              title="Excluir Elemento (Delete)"
             >
               <Trash2 size={16} />
             </button>

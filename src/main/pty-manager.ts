@@ -23,6 +23,10 @@ export class PtyManager extends EventEmitter {
     this.socketPath = socketPath
   }
 
+  public setSocketPath(socketPath: string): void {
+    this.socketPath = socketPath
+  }
+
   public getAvailableShell(): string {
     if (process.platform === 'win32') {
       return process.env.COMSPEC || 'powershell.exe'
@@ -39,6 +43,17 @@ export class PtyManager extends EventEmitter {
     command?: string,
     isMaestro = false
   ): TerminalSession {
+    // Se já existir sessão com este ID, encerrar o processo anterior para evitar processos órfãos
+    const existing = this.terminals.get(id)
+    if (existing) {
+      try {
+        existing.ptyProcess.kill()
+      } catch {
+        // Ignorar se já encerrado
+      }
+      this.terminals.delete(id)
+    }
+
     const shell = this.getAvailableShell()
     const targetCwd = cwd || os.homedir()
 
@@ -84,8 +99,11 @@ export class PtyManager extends EventEmitter {
     })
 
     ptyProcess.onExit(({ exitCode, signal }) => {
-      this.terminals.delete(id)
-      this.emit('exit', { id, exitCode, signal })
+      const current = this.terminals.get(id)
+      if (current?.ptyProcess === ptyProcess) {
+        this.terminals.delete(id)
+        this.emit('exit', { id, exitCode, signal })
+      }
     })
 
     this.terminals.set(id, session)

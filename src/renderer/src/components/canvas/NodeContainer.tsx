@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { useAtom, useSetAtom } from 'jotai'
+import React, { useState, memo } from 'react'
+import { useSetAtom, useStore } from 'jotai'
 import { Terminal, StickyNote, Globe, X, Sparkles, Maximize2, Minimize2 } from 'lucide-react'
 import type { CanvasNode, CableConnection } from '../../state/canvas'
 import {
@@ -16,72 +16,50 @@ import { ConnectionsBadge } from './ConnectionsBadge'
 interface NodeContainerProps {
   node: CanvasNode
   isSelected: boolean
-  onSelect: () => void
+  isExpanded: boolean
+  expandedBounds?: { x: number; y: number; w: number; h: number }
+  onSelect: (id: string) => void
   onUpdatePosition: (id: string, x: number, y: number) => void
   onUpdateSize: (id: string, width: number, height: number) => void
   onDelete: (id: string) => void
   children: React.ReactNode
 }
 
-export const NodeContainer: React.FC<NodeContainerProps> = ({
+const NodeContainerComponent: React.FC<NodeContainerProps> = ({
   node,
   isSelected,
+  isExpanded,
+  expandedBounds,
   onSelect,
   onUpdatePosition,
   onUpdateSize,
   onDelete,
   children
 }) => {
+  const store = useStore()
   const [isDragging, setIsDragging] = useState(false)
   const setConnectingFromId = useSetAtom(connectingFromNodeIdAtom)
   const setConnectingEndpoint = useSetAtom(connectingLineEndpointAtom)
-  const [connections, setConnections] = useAtom(connectionsAtom)
-  const [nodes] = useAtom(nodesAtom)
-  const [pan] = useAtom(panAtom)
-  const [zoom] = useAtom(zoomAtom)
-  const [expandedNodeId, setExpandedNodeId] = useAtom(expandedNodeIdAtom)
-  const isExpanded = expandedNodeId === node.id
-
-  const [windowSize, setWindowSize] = useState({
-    w: typeof window !== 'undefined' ? window.innerWidth : 1200,
-    h: typeof window !== 'undefined' ? window.innerHeight : 800
-  })
-
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowSize({ w: window.innerWidth, h: window.innerHeight })
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  useEffect(() => {
-    if (!isExpanded) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setExpandedNodeId(null)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isExpanded, setExpandedNodeId])
+  const setConnections = useSetAtom(connectionsAtom)
+  const setExpandedNodeId = useSetAtom(expandedNodeIdAtom)
 
   // Arrastar nó pelo cabeçalho
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isExpanded) return
     if ((e.target as HTMLElement).closest('.node-action-btn')) return
     e.stopPropagation()
-    onSelect()
+    onSelect(node.id)
     setIsDragging(true)
 
+    const currentZoom = store.get(zoomAtom)
     const startClientX = e.clientX
     const startClientY = e.clientY
     const startNodeX = node.x
     const startNodeY = node.y
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const dx = (moveEvent.clientX - startClientX) / zoom
-      const dy = (moveEvent.clientY - startClientY) / zoom
+      const dx = (moveEvent.clientX - startClientX) / currentZoom
+      const dy = (moveEvent.clientY - startClientY) / currentZoom
       onUpdatePosition(node.id, Math.round(startNodeX + dx), Math.round(startNodeY + dy))
     }
 
@@ -99,14 +77,15 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     if (isExpanded) return
     e.stopPropagation()
+    const currentZoom = store.get(zoomAtom)
     const startW = node.width
     const startH = node.height
     const startX = e.clientX
     const startY = e.clientY
 
     const handleResizeMouseMove = (moveEvent: MouseEvent) => {
-      const newW = Math.max(320, startW + (moveEvent.clientX - startX) / zoom)
-      const newH = Math.max(200, startH + (moveEvent.clientY - startY) / zoom)
+      const newW = Math.max(320, startW + (moveEvent.clientX - startX) / currentZoom)
+      const newH = Math.max(200, startH + (moveEvent.clientY - startY) / currentZoom)
       onUpdateSize(node.id, Math.round(newW), Math.round(newH))
     }
 
@@ -127,15 +106,20 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
 
     setConnectingFromId(node.id)
 
-    // Converter coordenada da tela para espaço do canvas
-    const canvasX = (e.clientX - pan.x) / zoom
-    const canvasY = (e.clientY - pan.y) / zoom
-    setConnectingEndpoint({ x: canvasX, y: canvasY })
+    const pan = store.get(panAtom)
+    const zoom = store.get(zoomAtom)
+    const viewportEl = document.querySelector('.canvas-viewport')
+    const rect = viewportEl?.getBoundingClientRect() || { left: 0, top: 0 }
+
+    const toCanvasCoords = (clientX: number, clientY: number) => ({
+      x: (clientX - rect.left - pan.x) / zoom,
+      y: (clientY - rect.top - pan.y) / zoom
+    })
+
+    setConnectingEndpoint(toCanvasCoords(e.clientX, e.clientY))
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const curX = (moveEvent.clientX - pan.x) / zoom
-      const curY = (moveEvent.clientY - pan.y) / zoom
-      setConnectingEndpoint({ x: curX, y: curY })
+      setConnectingEndpoint(toCanvasCoords(moveEvent.clientX, moveEvent.clientY))
     }
 
     const handleMouseUp = (upEvent: MouseEvent) => {
@@ -144,22 +128,21 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
       setConnectingFromId(null)
       setConnectingEndpoint(null)
 
-      // Identificar se o mouse foi solto sobre outro nó
-      const dropCanvasX = (upEvent.clientX - pan.x) / zoom
-      const dropCanvasY = (upEvent.clientY - pan.y) / zoom
+      const dropPos = toCanvasCoords(upEvent.clientX, upEvent.clientY)
+      const allNodes = store.get(nodesAtom)
+      const allConnections = store.get(connectionsAtom)
 
-      const target = nodes.find(
+      const target = allNodes.find(
         (n) =>
           n.id !== node.id &&
-          dropCanvasX >= n.x &&
-          dropCanvasX <= n.x + n.width &&
-          dropCanvasY >= n.y &&
-          dropCanvasY <= n.y + n.height
+          dropPos.x >= n.x &&
+          dropPos.x <= n.x + n.width &&
+          dropPos.y >= n.y &&
+          dropPos.y <= n.y + n.height
       )
 
       if (target) {
-        // Verificar se conexão já existe
-        const alreadyExists = connections.some(
+        const alreadyExists = allConnections.some(
           (c) =>
             (c.fromNodeId === node.id && c.toNodeId === target.id) ||
             (c.fromNodeId === target.id && c.toNodeId === node.id)
@@ -183,7 +166,7 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
   const renderIcon = () => {
     if (node.type === 'terminal') {
       return node.isMaestro ? (
-        <Sparkles className="w-4 h-4 text-purple-300 animate-pulse shrink-0" />
+        <Sparkles className="w-4 h-4 text-purple-300 shrink-0" />
       ) : (
         <Terminal className="w-4 h-4 text-purple-400 shrink-0" />
       )
@@ -194,26 +177,27 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
     return <StickyNote className="w-4 h-4 text-amber-400 shrink-0" />
   }
 
-  const renderX = isExpanded ? (-pan.x + 16) / zoom : node.x
-  const renderY = isExpanded ? (-pan.y + 16) / zoom : node.y
-  const renderW = isExpanded ? Math.max(360, (windowSize.w - 32) / zoom) : node.width
-  const renderH = isExpanded ? Math.max(240, (windowSize.h - 32) / zoom) : node.height
+  const renderX = isExpanded && expandedBounds ? expandedBounds.x : node.x
+  const renderY = isExpanded && expandedBounds ? expandedBounds.y : node.y
+  const renderW = isExpanded && expandedBounds ? expandedBounds.w : node.width
+  const renderH = isExpanded && expandedBounds ? expandedBounds.h : node.height
 
   return (
     <div
-      onClick={onSelect}
+      onClick={() => onSelect(node.id)}
       style={{
         transform: `translate3d(${renderX}px, ${renderY}px, 0)`,
         width: renderW,
         height: renderH,
+        willChange: isDragging ? 'transform' : 'auto',
         zIndex: isExpanded ? 50 : isSelected ? 30 : 20
       }}
-      className={`absolute select-none flex flex-col rounded-xl backdrop-blur-md transition-[shadow,border] duration-150 ${
+      className={`absolute top-0 left-0 select-none flex flex-col rounded-xl transition-shadow duration-150 ${
         isExpanded
           ? 'ring-2 ring-[#8B5CF6] shadow-2xl shadow-purple-950/60'
           : isSelected
           ? 'ring-2 ring-purple-500 shadow-neon-purple'
-          : 'ring-1 ring-[#2A2344] hover:ring-[#44386D] shadow-2xl'
+          : 'ring-1 ring-[#2A2344] hover:ring-[#44386D] shadow-xl'
       } bg-[#120F1E]`}
     >
       {/* Node Header */}
@@ -265,7 +249,10 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
 
           <button
             type="button"
-            onClick={() => onDelete(node.id)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(node.id)
+            }}
             className="p-1 rounded-md text-purple-400 hover:text-white hover:bg-rose-500/20 transition-colors"
             title="Fechar Nó"
           >
@@ -284,22 +271,22 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
         <>
           <div
             onMouseDown={handlePortMouseDown}
-            className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+            className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
             title="Arrastar cabo de conexão"
           />
           <div
             onMouseDown={handlePortMouseDown}
-            className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+            className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
             title="Arrastar cabo de conexão"
           />
           <div
             onMouseDown={handlePortMouseDown}
-            className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+            className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
             title="Arrastar cabo de conexão"
           />
           <div
             onMouseDown={handlePortMouseDown}
-            className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-all z-40"
+            className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
             title="Arrastar cabo de conexão"
           />
 
@@ -315,3 +302,5 @@ export const NodeContainer: React.FC<NodeContainerProps> = ({
     </div>
   )
 }
+
+export const NodeContainer = memo(NodeContainerComponent)

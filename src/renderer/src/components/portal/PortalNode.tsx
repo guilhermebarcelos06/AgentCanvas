@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import {
   RotateCw,
   ExternalLink,
@@ -14,9 +14,13 @@ import {
 interface PortalNodeProps {
   id: string
   initialUrl?: string
+  reloadKey?: number
 }
 
-export const PortalNode: React.FC<PortalNodeProps> = ({ initialUrl = 'http://localhost:5173' }) => {
+const PortalNodeComponent: React.FC<PortalNodeProps> = ({
+  initialUrl = 'http://localhost:5173',
+  reloadKey = 0
+}) => {
   const [history, setHistory] = useState<string[]>([initialUrl])
   const [historyIndex, setHistoryIndex] = useState(0)
   const [url, setUrl] = useState(initialUrl)
@@ -24,6 +28,12 @@ export const PortalNode: React.FC<PortalNodeProps> = ({ initialUrl = 'http://loc
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
 
   const currentSrc = history[historyIndex] || initialUrl
+
+  useEffect(() => {
+    if (reloadKey > 0) {
+      setKey((prev) => prev + 1)
+    }
+  }, [reloadKey])
 
   const navigateTo = (targetUrl: string) => {
     let clean = targetUrl.trim()
@@ -201,4 +211,5 @@ export const PortalNode: React.FC<PortalNodeProps> = ({ initialUrl = 'http://loc
   )
 }
 
+export const PortalNode = memo(PortalNodeComponent)
 export default PortalNode

@@ -1,18 +1,25 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAtomValue } from 'jotai'
-import { nodesAtom } from '../../state/canvas'
+import { nodesAtom, selectedNodeIdAtom } from '../../state/canvas'
 import { Send, Terminal, Sparkles } from 'lucide-react'
 
 export const PrompterBar: React.FC = () => {
   const nodes = useAtomValue(nodesAtom)
+  const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const terminalNodes = nodes.filter((n) => n.type === 'terminal')
 
   const [targetId, setTargetId] = useState<string>(terminalNodes[0]?.id || '')
   const [prompt, setPrompt] = useState('')
 
+  // Sincronizar automaticamente o agente alvo quando um terminal é selecionado no canvas
+  useEffect(() => {
+    if (selectedNodeId && terminalNodes.some((t) => t.id === selectedNodeId)) {
+      setTargetId(selectedNodeId)
+    }
+  }, [selectedNodeId, terminalNodes])
+
   if (terminalNodes.length === 0) return null
 
-  // Manter targetId válido se os nós mudarem
   const currentTarget = terminalNodes.find((n) => n.id === targetId) || terminalNodes[0]
 
   const handleSend = async (e: React.FormEvent) => {
@@ -31,7 +38,7 @@ export const PrompterBar: React.FC = () => {
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 select-none">
       <form
         onSubmit={handleSend}
-        className="flex items-center gap-2 p-1.5 pl-3 bg-[#120F1D]/90 backdrop-blur-md border border-[#372A59] hover:border-[#8B5CF6] rounded-2xl shadow-2xl transition-all w-[560px]"
+        className="flex items-center gap-2 p-1.5 pl-3 bg-[#120F1D]/95 border border-[#372A59] hover:border-[#8B5CF6] rounded-2xl shadow-2xl transition-colors w-[560px]"
       >
         {/* Seletor de Agente Alvo */}
         <div className="flex items-center gap-1.5 px-2 py-1 bg-[#1C1630] border border-[#2D234A] rounded-xl shrink-0">
@@ -55,10 +62,11 @@ export const PrompterBar: React.FC = () => {
 
         {/* Campo de Prompt */}
         <input
+          id="prompter-input"
           type="text"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder={`Perguntar ou comandar @${currentTarget?.title}...`}
+          placeholder={`Perguntar ou comandar @${currentTarget?.title}... (Ctrl+L)`}
           className="flex-1 bg-transparent px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none"
         />
 

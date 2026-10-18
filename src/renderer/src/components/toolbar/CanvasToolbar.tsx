@@ -28,8 +28,8 @@ import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher'
 
 export const CanvasToolbar: React.FC = () => {
   const [, setNodes] = useAtom(nodesAtom)
-  const [, setPan] = useAtom(panAtom)
-  const [, setZoom] = useAtom(zoomAtom)
+  const [pan, setPan] = useAtom(panAtom)
+  const [zoom, setZoom] = useAtom(zoomAtom)
   const [sidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom)
   const [minimapOpen, setMinimapOpen] = useAtom(minimapOpenAtom)
   const setNewTerminalModalOpen = useSetAtom(newTerminalModalOpenAtom)
@@ -37,38 +37,44 @@ export const CanvasToolbar: React.FC = () => {
 
   const handleAddNote = () => {
     const id = `note-${Date.now().toString(36)}`
-    setNodes((prev) => [
-      ...prev,
-      {
-        id,
-        type: 'note',
-        title: `Nota (${prev.filter((n) => n.type === 'note').length + 1})`,
-        x: 350 + Math.random() * 80,
-        y: 240 + Math.random() * 80,
-        width: 480,
-        height: 320,
-        color: '#EC4899',
-        data: { content: '# Nova Nota\n\nDescreva sua tarefa ou arquitetura aqui...' }
-      }
-    ])
+    setNodes((prev) => {
+      const offset = (prev.length % 5) * 24
+      return [
+        ...prev,
+        {
+          id,
+          type: 'note',
+          title: `Nota (${prev.filter((n) => n.type === 'note').length + 1})`,
+          x: Math.round((-pan.x + window.innerWidth / 2 - 240) / zoom) + offset,
+          y: Math.round((-pan.y + (window.innerHeight - 48) / 2 - 160) / zoom) + offset,
+          width: 480,
+          height: 320,
+          color: '#EC4899',
+          data: { content: '# Nova Nota\n\nDescreva sua tarefa ou arquitetura aqui...' }
+        }
+      ]
+    })
   }
 
   const handleAddPortal = () => {
     const id = `portal-${Date.now().toString(36)}`
-    setNodes((prev) => [
-      ...prev,
-      {
-        id,
-        type: 'portal',
-        title: `Portal Web (${prev.filter((n) => n.type === 'portal').length + 1})`,
-        x: 300 + Math.random() * 80,
-        y: 200 + Math.random() * 80,
-        width: 680,
-        height: 480,
-        color: '#06B6D4',
-        data: { url: 'http://localhost:5173' }
-      }
-    ])
+    setNodes((prev) => {
+      const offset = (prev.length % 5) * 24
+      return [
+        ...prev,
+        {
+          id,
+          type: 'portal',
+          title: `Portal Web (${prev.filter((n) => n.type === 'portal').length + 1})`,
+          x: Math.round((-pan.x + window.innerWidth / 2 - 340) / zoom) + offset,
+          y: Math.round((-pan.y + (window.innerHeight - 48) / 2 - 240) / zoom) + offset,
+          width: 680,
+          height: 480,
+          color: '#06B6D4',
+          data: { url: 'http://localhost:5173' }
+        }
+      ]
+    })
   }
 
   const handleTidyNodes = () => {

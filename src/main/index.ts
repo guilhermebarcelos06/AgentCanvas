@@ -69,14 +69,13 @@ app.whenReady().then(async () => {
   // Session ID for local socket/pipe naming
   const sessionId = `${process.pid}-${Date.now().toString(36)}`
 
-  // 1. Initialize PTY Manager
+  // 1. Initialize Single Shared PTY Manager
   ptyManager = new PtyManager(`/tmp/agentcanvas-${process.getuid?.() || 1000}/agentcanvas.sock`)
 
-  // 2. Initialize Socket Server
+  // 2. Initialize Socket Server with shared PTY Manager
   socketServer = new SocketServer(ptyManager, sessionId)
   const actualSocketPath = await socketServer.start()
-  // Update PTY manager with exact socket path
-  ptyManager = new PtyManager(actualSocketPath)
+  ptyManager.setSocketPath(actualSocketPath)
 
   // Initialize Workspace Store
   workspaceStore = new WorkspaceStore()
@@ -170,10 +169,19 @@ app.whenReady().then(async () => {
     return FileManager.readFileContent(filePath)
   })
 
-  // Terminal IPCs with auto-run support
+  // Terminal IPCs with auto-run support (returns serializable DTO)
   ipcMain.handle('terminal:spawn', (_, { id, name, cwd, cols, rows, command, isMaestro }) => {
     const targetCwd = cwd || workspaceStore?.getActive()?.rootPath || process.cwd()
-    return ptyManager?.spawn(id, name, targetCwd, cols, rows, command, isMaestro)
+    const session = ptyManager?.spawn(id, name, targetCwd, cols, rows, command, isMaestro)
+    if (!session) return null
+    return {
+      id: session.id,
+      name: session.name,
+      cwd: session.cwd,
+      shell: session.shell,
+      command: session.command,
+      isMaestro: session.isMaestro
+    }
   })
 
   ipcMain.handle('terminal:write', (_, { id, data }) => {

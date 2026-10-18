@@ -18,7 +18,7 @@ export interface WorkspaceItem {
 export class WorkspaceStore {
   private configPath: string
   private workspaces: WorkspaceItem[] = []
-  private activeWorkspaceId: string
+  private activeWorkspaceId = ''
 
   constructor() {
     const configDir = path.join(os.homedir(), '.config', 'agentcanvas')
@@ -39,7 +39,7 @@ export class WorkspaceStore {
       this.workspaces.push(defaultWorkspace)
       this.activeWorkspaceId = defaultWorkspace.id
       this.save()
-    } else {
+    } else if (!this.activeWorkspaceId || !this.workspaces.some((w) => w.id === this.activeWorkspaceId)) {
       this.activeWorkspaceId = this.workspaces[0].id
     }
   }

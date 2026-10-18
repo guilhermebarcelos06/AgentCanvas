@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, memo } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -9,10 +9,23 @@ interface TerminalNodeProps {
   title: string
   width: number
   height: number
+  cwd?: string
+  command?: string
+  isMaestro?: boolean
+  reloadKey?: number
   onTitleChange?: (newTitle: string) => void
 }
 
-export const TerminalNode: React.FC<TerminalNodeProps> = ({ id, title, width, height }) => {
+const TerminalNodeComponent: React.FC<TerminalNodeProps> = ({
+  id,
+  title,
+  width,
+  height,
+  cwd,
+  command,
+  isMaestro,
+  reloadKey = 0
+}) => {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermInstance = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -24,6 +37,7 @@ export const TerminalNode: React.FC<TerminalNodeProps> = ({ id, title, width, he
       cursorBlink: true,
       cursorStyle: 'bar',
       fontSize: 13,
+      scrollback: 3000,
       fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
       theme: {
         background: '#090712',
@@ -64,18 +78,21 @@ export const TerminalNode: React.FC<TerminalNodeProps> = ({ id, title, width, he
       })
       term.loadAddon(webglAddon)
     } catch {
-      console.warn('WebGL addon could not be initialized, falling back to standard canvas')
+      // Standard canvas fallback is used automatically
     }
 
     xtermInstance.current = term
     fitAddon.fit()
 
-    // Spawn native terminal process
+    // Spawn native terminal process with exact dimensions and metadata
     window.agentCanvasAPI?.spawnTerminal({
       id,
       name: title,
-      cols: term.cols,
-      rows: term.rows
+      cwd,
+      cols: term.cols || 80,
+      rows: term.rows || 24,
+      command,
+      isMaestro
     })
 
     // Forward user keypresses to native PTY
@@ -83,31 +100,53 @@ export const TerminalNode: React.FC<TerminalNodeProps> = ({ id, title, width, he
       window.agentCanvasAPI?.writeTerminal(id, data)
     })
 
-    // Receive data from native PTY
+    // Batch PTY output per animation frame for 60fps smoothness under heavy stdout
+    let pendingBuffer = ''
+    let rafId: number | null = null
+
+    const flushBuffer = () => {
+      rafId = null
+      if (pendingBuffer && xtermInstance.current) {
+        const chunk = pendingBuffer
+        pendingBuffer = ''
+        xtermInstance.current.write(chunk)
+      }
+    }
+
     const cleanupListener = window.agentCanvasAPI?.onTerminalData(({ id: termId, data }) => {
       if (termId === id) {
-        term.write(data)
+        pendingBuffer += data
+        if (rafId === null) {
+          rafId = window.requestAnimationFrame(flushBuffer)
+        }
       }
     })
 
     return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId)
+      }
       onDataDisposable.dispose()
       cleanupListener?.()
       term.dispose()
     }
-  }, [id])
+  }, [id, reloadKey])
 
   // Handle resize when dimensions change
   useEffect(() => {
     if (fitAddonRef.current && xtermInstance.current) {
-      setTimeout(() => {
-        fitAddonRef.current?.fit()
-        const term = xtermInstance.current
-        if (term) {
-          window.agentCanvasAPI?.resizeTerminal(id, term.cols, term.rows)
-        }
-      }, 50)
+      const timer = setTimeout(() => {
+        try {
+          fitAddonRef.current?.fit()
+          const term = xtermInstance.current
+          if (term) {
+            window.agentCanvasAPI?.resizeTerminal(id, term.cols, term.rows)
+          }
+        } catch {}
+      }, 40)
+      return () => clearTimeout(timer)
     }
+    return undefined
   }, [width, height, id])
 
   return (
@@ -116,3 +155,5 @@ export const TerminalNode: React.FC<TerminalNodeProps> = ({ id, title, width, he
     </div>
   )
 }
+
+export const TerminalNode = memo(TerminalNodeComponent)
