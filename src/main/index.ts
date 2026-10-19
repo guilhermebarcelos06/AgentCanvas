@@ -205,6 +205,10 @@ app.whenReady().then(async () => {
     return ptyManager?.list() || []
   })
 
+  ipcMain.handle('terminal:get-scrollback', (_, id: string) => {
+    return ptyManager?.getScrollback(id) || ''
+  })
+
   // Sockets & Notes IPCs
   ipcMain.handle('socket:info', () => {
     return {

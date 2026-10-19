@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
 import { CanvasToolbar } from './components/toolbar/CanvasToolbar'
 import { InfiniteCanvas } from './components/canvas/InfiniteCanvas'
@@ -15,7 +15,9 @@ import {
   activeWorkspaceAtom,
   selectedNodeIdAtom,
   expandedNodeIdAtom,
-  minimapOpenAtom
+  minimapOpenAtom,
+  panAtom,
+  zoomAtom
 } from './state/canvas'
 
 export const App: React.FC = () => {
@@ -23,18 +25,31 @@ export const App: React.FC = () => {
   const [nodes, setNodes] = useAtom(nodesAtom)
   const [connections, setConnections] = useAtom(connectionsAtom)
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const pan = useAtomValue(panAtom)
+  const zoom = useAtomValue(zoomAtom)
+  const prevWorkspaceIdRef = useRef<string | null>(null)
 
-  // Persistir automaticamente o estado (nós e cabos) no workspace ativo (com debounce)
+  // Persistir automaticamente o estado (nós, cabos, pan e zoom) no workspace ativo (com debounce)
   useEffect(() => {
     if (!activeWorkspace?.id) return
+
+    // Se acabou de alternar de workspace, apenas sincroniza a referência para não salvar nós antigos no novo
+    if (prevWorkspaceIdRef.current !== activeWorkspace.id) {
+      prevWorkspaceIdRef.current = activeWorkspace.id
+      return
+    }
+
+    const currentWsId = activeWorkspace.id
     const timeout = setTimeout(() => {
-      window.agentCanvasAPI?.saveWorkspaceState(activeWorkspace.id, {
+      window.agentCanvasAPI?.saveWorkspaceState(currentWsId, {
         nodes,
-        cables: connections
+        cables: connections,
+        pan,
+        zoom
       })
     }, 600)
     return () => clearTimeout(timeout)
-  }, [nodes, connections, activeWorkspace])
+  }, [nodes, connections, pan, zoom, activeWorkspace?.id])
 
   // Extrair apenas id/title/content das notas para não disparar IPC ao arrastar/mover nós
   const notePayloadKey = useMemo(() => {

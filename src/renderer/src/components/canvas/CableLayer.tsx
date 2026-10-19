@@ -1,7 +1,7 @@
 import React, { memo } from 'react'
 import { useAtomValue } from 'jotai'
 import type { CanvasNode, CableConnection } from '../../state/canvas'
-import { connectingFromNodeIdAtom, connectingLineEndpointAtom } from '../../state/canvas'
+import { connectingFromNodeIdAtom, connectingFromPortAtom, connectingLineEndpointAtom } from '../../state/canvas'
 
 interface CableLayerProps {
   nodes: CanvasNode[]
@@ -42,6 +42,7 @@ function computeAnchorPoints(from: CanvasNode, to: CanvasNode) {
 const CableLayerComponent: React.FC<CableLayerProps> = ({ nodes, connections }) => {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
   const connectingFromId = useAtomValue(connectingFromNodeIdAtom)
+  const connectingPort = useAtomValue(connectingFromPortAtom)
   const connectingEndpoint = useAtomValue(connectingLineEndpointAtom)
 
   const fromDraggingNode = connectingFromId ? nodeMap.get(connectingFromId) : null
@@ -96,13 +97,41 @@ const CableLayerComponent: React.FC<CableLayerProps> = ({ nodes, connections }) 
       {fromDraggingNode && connectingEndpoint && (
         <g>
           {(() => {
-            const startX = fromDraggingNode.x + fromDraggingNode.width / 2
-            const startY = fromDraggingNode.y + fromDraggingNode.height / 2
+            let startX = fromDraggingNode.x + fromDraggingNode.width / 2
+            let startY = fromDraggingNode.y + fromDraggingNode.height / 2
+            let isHorizontal = false
+
+            if (connectingPort === 'top') {
+              startX = fromDraggingNode.x + fromDraggingNode.width / 2
+              startY = fromDraggingNode.y
+              isHorizontal = false
+            } else if (connectingPort === 'bottom') {
+              startX = fromDraggingNode.x + fromDraggingNode.width / 2
+              startY = fromDraggingNode.y + fromDraggingNode.height
+              isHorizontal = false
+            } else if (connectingPort === 'left') {
+              startX = fromDraggingNode.x
+              startY = fromDraggingNode.y + fromDraggingNode.height / 2
+              isHorizontal = true
+            } else if (connectingPort === 'right') {
+              startX = fromDraggingNode.x + fromDraggingNode.width
+              startY = fromDraggingNode.y + fromDraggingNode.height / 2
+              isHorizontal = true
+            }
+
             const endX = connectingEndpoint.x
             const endY = connectingEndpoint.y
 
-            const dy = Math.max(Math.abs(endY - startY) * 0.4, 40)
-            const pathData = `M ${startX} ${startY} C ${startX} ${startY + dy}, ${endX} ${endY - dy}, ${endX} ${endY}`
+            let pathData = ''
+            if (isHorizontal) {
+              const dx = Math.max(Math.abs(endX - startX) * 0.45, 40)
+              const dir = endX >= startX ? 1 : -1
+              pathData = `M ${startX} ${startY} C ${startX + dx * dir} ${startY}, ${endX - dx * dir} ${endY}, ${endX} ${endY}`
+            } else {
+              const dy = Math.max(Math.abs(endY - startY) * 0.45, 40)
+              const dir = endY >= startY ? 1 : -1
+              pathData = `M ${startX} ${startY} C ${startX} ${startY + dy * dir}, ${endX} ${endY - dy * dir}, ${endX} ${endY}`
+            }
 
             return (
               <>

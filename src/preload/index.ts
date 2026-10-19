@@ -72,6 +72,8 @@ export const agentCanvasAPI = {
     ipcRenderer.invoke('terminal:resize', { id, cols, rows }),
   killTerminal: (id: string) => ipcRenderer.invoke('terminal:kill', { id }),
   listTerminals: () => ipcRenderer.invoke('terminal:list'),
+  getTerminalScrollback: (id: string): Promise<string> =>
+    ipcRenderer.invoke('terminal:get-scrollback', id),
   onTerminalData: (callback: (payload: { id: string; data: string }) => void) => {
     const handler = (_: unknown, val: { id: string; data: string }) => callback(val)
     ipcRenderer.on('terminal:data', handler)

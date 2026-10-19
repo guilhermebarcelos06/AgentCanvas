@@ -11,6 +11,103 @@ interface NoteNodeProps {
   onContentChange: (newContent: string) => void
 }
 
+function renderInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = []
+  const regex = /(\*\*.*?\*\*|\*.*?\*|`.*?`)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const token = match[0]
+    if (token.startsWith('**') && token.endsWith('**')) {
+      parts.push(<strong key={match.index} className="font-semibold text-white">{token.slice(2, -2)}</strong>)
+    } else if (token.startsWith('*') && token.endsWith('*')) {
+      parts.push(<em key={match.index} className="italic text-purple-300">{token.slice(1, -1)}</em>)
+    } else if (token.startsWith('`') && token.endsWith('`')) {
+      parts.push(
+        <code key={match.index} className="px-1.5 py-0.5 rounded bg-[#1C1630] border border-[#312554] font-mono text-[11px] text-purple-300">
+          {token.slice(1, -1)}
+        </code>
+      )
+    }
+    lastIndex = regex.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : text
+}
+
+function renderMarkdownText(text: string): React.ReactNode {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let inCodeBlock = false
+  let codeBuffer: string[] = []
+
+  lines.forEach((line, lineIdx) => {
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        elements.push(
+          <pre key={`code-${lineIdx}`} className="bg-[#090714] border border-[#271F3F] rounded-lg p-2.5 my-2 font-mono text-[11px] text-purple-200 overflow-x-auto">
+            <code>{codeBuffer.join('\n')}</code>
+          </pre>
+        )
+        codeBuffer = []
+        inCodeBlock = false
+      } else {
+        inCodeBlock = true
+        codeBuffer = []
+      }
+      return
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(line)
+      return
+    }
+
+    if (line.startsWith('# ')) {
+      elements.push(<h1 key={lineIdx} className="text-base font-bold text-purple-100 mt-2 mb-1 border-b border-[#2D234A] pb-1">{renderInline(line.slice(2))}</h1>)
+      return
+    }
+    if (line.startsWith('## ')) {
+      elements.push(<h2 key={lineIdx} className="text-sm font-semibold text-purple-200 mt-2 mb-1">{renderInline(line.slice(3))}</h2>)
+      return
+    }
+    if (line.startsWith('### ')) {
+      elements.push(<h3 key={lineIdx} className="text-xs font-semibold text-purple-300 mt-1.5 mb-0.5">{renderInline(line.slice(4))}</h3>)
+      return
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      elements.push(
+        <li key={lineIdx} className="ml-4 list-disc text-xs text-purple-200/90 my-0.5">
+          {renderInline(line.replace(/^[-*]\s+/, ''))}
+        </li>
+      )
+      return
+    }
+
+    if (!line.trim()) {
+      elements.push(<div key={lineIdx} className="h-1.5" />)
+      return
+    }
+
+    elements.push(
+      <p key={lineIdx} className="text-xs text-purple-200/90 my-0.5 leading-relaxed">
+        {renderInline(line)}
+      </p>
+    )
+  })
+
+  return elements
+}
+
 const NoteNodeComponent: React.FC<NoteNodeProps> = ({ content, onContentChange }) => {
   const [isEditing, setIsEditing] = useState(false)
   const mermaidRef = useRef<HTMLDivElement>(null)
@@ -79,12 +176,12 @@ const NoteNodeComponent: React.FC<NoteNodeProps> = ({ content, onContentChange }
             placeholder="Digite suas anotações ou diagramas em Markdown..."
           />
         ) : (
-          <div ref={mermaidRef} className="prose prose-invert prose-purple max-w-none text-xs leading-relaxed">
+          <div ref={mermaidRef} className="prose prose-invert prose-purple max-w-none text-xs leading-relaxed space-y-1">
             {content.split('```mermaid').map((part, index) => {
               if (index === 0) {
                 return (
-                  <div key={index} className="whitespace-pre-wrap mb-2">
-                    {part}
+                  <div key={index} className="mb-2">
+                    {renderMarkdownText(part)}
                   </div>
                 )
               }
@@ -94,7 +191,7 @@ const NoteNodeComponent: React.FC<NoteNodeProps> = ({ content, onContentChange }
                   <div className="mermaid bg-[#0A0814] p-3 rounded-lg border border-[#2A2344] overflow-x-auto flex justify-center">
                     {diagram.trim()}
                   </div>
-                  {rest.length > 0 && <div className="whitespace-pre-wrap mt-2">{rest.join('```')}</div>}
+                  {rest.length > 0 && <div className="mt-2">{renderMarkdownText(rest.join('```'))}</div>}
                 </div>
               )
             })}

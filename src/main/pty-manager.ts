@@ -43,15 +43,16 @@ export class PtyManager extends EventEmitter {
     command?: string,
     isMaestro = false
   ): TerminalSession {
-    // Se já existir sessão com este ID, encerrar o processo anterior para evitar processos órfãos
+    // Se já existir sessão ativa com este ID (ex: remontagem de componente ou troca de tela), reaproveitar (Attach)
     const existing = this.terminals.get(id)
     if (existing) {
       try {
-        existing.ptyProcess.kill()
+        existing.ptyProcess.resize(initialCols, initialRows)
+        return existing
       } catch {
-        // Ignorar se já encerrado
+        // Se o processo estiver inacessível, descarta e recria
+        this.terminals.delete(id)
       }
-      this.terminals.delete(id)
     }
 
     const shell = this.getAvailableShell()
@@ -188,5 +189,11 @@ export class PtyManager extends EventEmitter {
     const session = this.terminals.get(id)
     if (!session) return ''
     return session.buffer.slice(-lines).join('')
+  }
+
+  public getScrollback(id: string): string {
+    const session = this.terminals.get(id)
+    if (!session) return ''
+    return session.buffer.join('')
   }
 }

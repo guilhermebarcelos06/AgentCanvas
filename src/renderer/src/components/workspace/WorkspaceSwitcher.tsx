@@ -6,6 +6,8 @@ import {
   newWorkspaceModalOpenAtom,
   nodesAtom,
   connectionsAtom,
+  panAtom,
+  zoomAtom,
   type WorkspaceItem
 } from '../../state/canvas'
 import { ChevronDown, Folder, Plus, Check } from 'lucide-react'
@@ -16,6 +18,8 @@ export const WorkspaceSwitcher: React.FC = () => {
   const setNewWorkspaceModalOpen = useSetAtom(newWorkspaceModalOpenAtom)
   const setNodes = useSetAtom(nodesAtom)
   const setConnections = useSetAtom(connectionsAtom)
+  const setPan = useSetAtom(panAtom)
+  const setZoom = useSetAtom(zoomAtom)
   const [isOpen, setIsOpen] = useState(false)
 
   // Carregar workspaces do backend Electron ao montar
@@ -27,30 +31,35 @@ export const WorkspaceSwitcher: React.FC = () => {
         const active = await window.agentCanvasAPI.getActiveWorkspace()
         if (active) {
           setActiveWorkspace(active)
-          if (active.state?.nodes) {
-            setNodes(active.state.nodes)
-          }
-          if (active.state?.cables) {
-            setConnections(active.state.cables)
-          }
+          setNodes(active.state?.nodes || [])
+          setConnections(active.state?.cables || [])
+          if (active.state?.pan) setPan(active.state.pan)
+          if (active.state?.zoom) setZoom(active.state.zoom)
         }
       } catch (err) {
         console.error('Erro ao carregar workspaces:', err)
       }
     }
     loadWorkspaces()
-  }, [setWorkspaces, setActiveWorkspace, setNodes, setConnections])
+  }, [setWorkspaces, setActiveWorkspace, setNodes, setConnections, setPan, setZoom])
 
   const handleSwitch = async (ws: WorkspaceItem) => {
     try {
       const switched = await window.agentCanvasAPI.switchWorkspace(ws.id)
       if (switched) {
         setActiveWorkspace(switched)
-        if (switched.state?.nodes) {
-          setNodes(switched.state.nodes)
+        // Limpeza e carregamento atômico: se o workspace destino estiver vazio, limpa o canvas
+        setNodes(switched.state?.nodes || [])
+        setConnections(switched.state?.cables || [])
+        if (switched.state?.pan) {
+          setPan(switched.state.pan)
+        } else {
+          setPan({ x: 0, y: 0 })
         }
-        if (switched.state?.cables) {
-          setConnections(switched.state.cables)
+        if (switched.state?.zoom) {
+          setZoom(switched.state.zoom)
+        } else {
+          setZoom(1)
         }
       }
       setIsOpen(false)

@@ -1,9 +1,10 @@
 import React, { useState, memo } from 'react'
 import { useSetAtom, useStore } from 'jotai'
 import { Terminal, StickyNote, Globe, X, Sparkles, Maximize2, Minimize2 } from 'lucide-react'
-import type { CanvasNode, CableConnection } from '../../state/canvas'
+import type { CanvasNode, CableConnection, PortSide } from '../../state/canvas'
 import {
   connectingFromNodeIdAtom,
+  connectingFromPortAtom,
   connectingLineEndpointAtom,
   connectionsAtom,
   nodesAtom,
@@ -39,6 +40,7 @@ const NodeContainerComponent: React.FC<NodeContainerProps> = ({
   const store = useStore()
   const [isDragging, setIsDragging] = useState(false)
   const setConnectingFromId = useSetAtom(connectingFromNodeIdAtom)
+  const setConnectingFromPort = useSetAtom(connectingFromPortAtom)
   const setConnectingEndpoint = useSetAtom(connectingLineEndpointAtom)
   const setConnections = useSetAtom(connectionsAtom)
   const setExpandedNodeId = useSetAtom(expandedNodeIdAtom)
@@ -99,12 +101,13 @@ const NodeContainerComponent: React.FC<NodeContainerProps> = ({
   }
 
   // Iniciar arrasto de cabo a partir de uma porta
-  const handlePortMouseDown = (e: React.MouseEvent) => {
+  const handlePortMouseDown = (e: React.MouseEvent, portSide: PortSide) => {
     if (isExpanded) return
     e.stopPropagation()
     e.preventDefault()
 
     setConnectingFromId(node.id)
+    setConnectingFromPort(portSide)
 
     const pan = store.get(panAtom)
     const zoom = store.get(zoomAtom)
@@ -126,6 +129,7 @@ const NodeContainerComponent: React.FC<NodeContainerProps> = ({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
       setConnectingFromId(null)
+      setConnectingFromPort(null)
       setConnectingEndpoint(null)
 
       const dropPos = toCanvasCoords(upEvent.clientX, upEvent.clientY)
@@ -270,24 +274,24 @@ const NodeContainerComponent: React.FC<NodeContainerProps> = ({
       {!isExpanded && (
         <>
           <div
-            onMouseDown={handlePortMouseDown}
+            onMouseDown={(e) => handlePortMouseDown(e, 'top')}
             className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
-            title="Arrastar cabo de conexão"
+            title="Arrastar cabo de conexão (Superior)"
           />
           <div
-            onMouseDown={handlePortMouseDown}
+            onMouseDown={(e) => handlePortMouseDown(e, 'bottom')}
             className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
-            title="Arrastar cabo de conexão"
+            title="Arrastar cabo de conexão (Inferior)"
           />
           <div
-            onMouseDown={handlePortMouseDown}
+            onMouseDown={(e) => handlePortMouseDown(e, 'left')}
             className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#8B5CF6] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
-            title="Arrastar cabo de conexão"
+            title="Arrastar cabo de conexão (Esquerda)"
           />
           <div
-            onMouseDown={handlePortMouseDown}
+            onMouseDown={(e) => handlePortMouseDown(e, 'right')}
             className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#A855F7] border-2 border-[#120F1E] shadow-sm pointer-events-auto cursor-crosshair hover:scale-150 hover:bg-purple-300 transition-transform z-40"
-            title="Arrastar cabo de conexão"
+            title="Arrastar cabo de conexão (Direita)"
           />
 
           {/* Resize Handle at Bottom-Right */}

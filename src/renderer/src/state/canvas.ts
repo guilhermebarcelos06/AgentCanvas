@@ -46,7 +46,9 @@ export const expandedNodeIdAtom = atom(null as string | null)
 export const canvasModeAtom = atom<'select' | 'draw'>('select')
 
 // Cable interaction atoms
+export type PortSide = 'top' | 'bottom' | 'left' | 'right'
 export const connectingFromNodeIdAtom = atom(null as string | null)
+export const connectingFromPortAtom = atom(null as PortSide | null)
 export const connectingLineEndpointAtom = atom(null as { x: number; y: number } | null)
 
 // UI panels atoms

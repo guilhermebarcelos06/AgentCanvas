@@ -29,9 +29,11 @@ const TerminalNodeComponent: React.FC<TerminalNodeProps> = ({
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermInstance = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const [exitStatus, setExitStatus] = React.useState<{ exitCode: number; signal?: number } | null>(null)
 
   useEffect(() => {
     if (!terminalRef.current) return
+    setExitStatus(null)
 
     const term = new Terminal({
       cursorBlink: true,
@@ -84,16 +86,27 @@ const TerminalNodeComponent: React.FC<TerminalNodeProps> = ({
     xtermInstance.current = term
     fitAddon.fit()
 
-    // Spawn native terminal process with exact dimensions and metadata
-    window.agentCanvasAPI?.spawnTerminal({
-      id,
-      name: title,
-      cwd,
-      cols: term.cols || 80,
-      rows: term.rows || 24,
-      command,
-      isMaestro
-    })
+    // Spawn or re-attach native terminal process
+    window.agentCanvasAPI
+      ?.spawnTerminal({
+        id,
+        name: title,
+        cwd,
+        cols: term.cols || 80,
+        rows: term.rows || 24,
+        command,
+        isMaestro
+      })
+      .then(async () => {
+        // Re-hidratar scrollback acumulado se a sessão já estiver ativa (Attach)
+        const scrollback = await window.agentCanvasAPI?.getTerminalScrollback(id)
+        if (scrollback && xtermInstance.current) {
+          xtermInstance.current.write(scrollback)
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao spawnar/anexar terminal:', err)
+      })
 
     // Forward user keypresses to native PTY
     const onDataDisposable = term.onData((data) => {
@@ -122,12 +135,19 @@ const TerminalNodeComponent: React.FC<TerminalNodeProps> = ({
       }
     })
 
+    const exitListener = window.agentCanvasAPI?.onTerminalExit(({ id: termId, exitCode, signal }) => {
+      if (termId === id) {
+        setExitStatus({ exitCode, signal })
+      }
+    })
+
     return () => {
       if (rafId !== null) {
         window.cancelAnimationFrame(rafId)
       }
       onDataDisposable.dispose()
       cleanupListener?.()
+      exitListener?.()
       term.dispose()
     }
   }, [id, reloadKey])
@@ -152,6 +172,14 @@ const TerminalNodeComponent: React.FC<TerminalNodeProps> = ({
   return (
     <div className="w-full h-full flex flex-col bg-[#090712] rounded-b-xl overflow-hidden border-t border-[#2A2344]">
       <div ref={terminalRef} className="flex-1 w-full h-full overflow-hidden p-1.5" />
+      {exitStatus !== null && (
+        <div className="px-3 py-1 bg-red-950/80 border-t border-red-800/60 text-[11px] font-mono text-red-200 flex items-center justify-between select-none">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            Processo encerrado (código {exitStatus.exitCode})
+          </span>
+        </div>
+      )}
     </div>
   )
 }

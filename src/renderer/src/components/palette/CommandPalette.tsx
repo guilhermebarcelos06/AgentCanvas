@@ -32,6 +32,7 @@ export const CommandPalette: React.FC = () => {
   const setZoom = useSetAtom(zoomAtom)
 
   const [search, setSearch] = useState('')
+  const [selectedIndex, setSelectedIndex] = useState(0)
 
   // Listener para Ctrl+K / Cmd+K
   useEffect(() => {
@@ -47,6 +48,10 @@ export const CommandPalette: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, setIsOpen])
+
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [search])
 
   if (!isOpen) return null
 
@@ -147,6 +152,21 @@ export const CommandPalette: React.FC = () => {
     c.title.toLowerCase().includes(search.toLowerCase())
   )
 
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex((prev) => (filtered.length > 0 ? (prev + 1) % filtered.length : 0))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex((prev) => (filtered.length > 0 ? (prev - 1 + filtered.length) % filtered.length : 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (filtered[selectedIndex]) {
+        handleAction(filtered[selectedIndex].action)
+      }
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 p-4 bg-black/70 backdrop-blur-sm select-none">
       <div className="w-full max-w-xl bg-[#120F1D] border border-[#3B2F63] rounded-2xl shadow-2xl overflow-hidden flex flex-col text-sm text-gray-200">
@@ -158,6 +178,7 @@ export const CommandPalette: React.FC = () => {
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleInputKeyDown}
             placeholder="Digite um comando ou ação... (ex.: terminal, tidy, nota)"
             className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm focus:outline-none"
           />
@@ -173,14 +194,20 @@ export const CommandPalette: React.FC = () => {
               Nenhum comando encontrado para &quot;{search}&quot;
             </div>
           ) : (
-            filtered.map((cmd) => {
+            filtered.map((cmd, index) => {
               const IconComp = cmd.icon
+              const isHighlighted = index === selectedIndex
               return (
                 <button
                   key={cmd.id}
                   type="button"
+                  onMouseEnter={() => setSelectedIndex(index)}
                   onClick={() => handleAction(cmd.action)}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-left hover:bg-[#1E1733] hover:text-purple-200 transition-colors group"
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors group ${
+                    isHighlighted
+                      ? 'bg-[#291F47] text-purple-100 border border-purple-500/50'
+                      : 'hover:bg-[#1E1733] hover:text-purple-200 border border-transparent'
+                  }`}
                 >
                   <div className="flex items-center gap-3 truncate mr-2">
                     <div className="p-1.5 rounded-lg bg-[#181329] border border-[#2F234F] text-purple-400 group-hover:border-[#8B5CF6]">
